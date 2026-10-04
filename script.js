@@ -678,6 +678,7 @@ V.p_dash=u=>{
 /* ---------- Data Pendaftar ---------- */
 const PF={q:'',sekolah:'',status:''};
 const calonAll=()=>db.users.filter(x=>x.role==='calon');
+const canDelCalon=(u=me())=>!!u&&(u.role==='admin'||u.role==='ketua');
 function pdFiltered(){
   const q=PF.q.trim().toLowerCase();
   return calonAll().filter(x=>{
@@ -688,7 +689,7 @@ function pdFiltered(){
   });
 }
 function pdResults(){
-  const all=calonAll(),c=pdFiltered(),ed=can('pendaftar');
+  const all=calonAll(),c=pdFiltered(),ed=can('pendaftar'),dl=canDelCalon();
   const filtering=!!(PF.q.trim()||PF.sekolah||PF.status);
   const empty=!all.length
     ?'Belum ada pendaftar. Data akan muncul setelah calon membuat akun.'
@@ -701,9 +702,9 @@ function pdResults(){
     <div class="stat"><small>LULUS</small><b>${all.filter(x=>x.status==='Lulus').length}</b></div>
   </div>
   <p class="muted pendaftar-count">Menampilkan <b>${c.length}</b> dari <b>${all.length}</b> pendaftar${filtering?' (difilter)':''}</p>`+
-  table(['Nama','No. HP','Sekolah','Kelas','Data','Status'],c.map(x=>`<tr>
+  table(['Nama','No. HP','Sekolah','Kelas','Data','Status',...(dl?['']:[])],c.map(x=>`<tr>
     <td>${esc(x.nama)}</td><td>${esc(x.hp||'-')}</td><td>${esc(x.data?.sekolah||'-')}</td><td>${esc(x.data?.kelas||'-')}</td><td>${prog(x)}%</td>
-    <td><select data-st="${x.id}" aria-label="Status ${esc(x.nama)}" ${ed?'':'disabled'}>${STAT.map(s=>`<option ${s===x.status?'selected':''}>${s}</option>`).join('')}</select></td></tr>`),empty);
+    <td><select data-st="${x.id}" aria-label="Status ${esc(x.nama)}" ${ed?'':'disabled'}>${STAT.map(s=>`<option ${s===x.status?'selected':''}>${s}</option>`).join('')}</select></td>${dl?`<td><button class="btn red sm" data-delc="${x.id}">Hapus</button></td>`:''}</tr>`),empty);
 }
 V.p_pendaftar=u=>{
   const sekolahList=[...new Set([...schoolList(),...calonAll().map(x=>x.data?.sekolah).filter(Boolean)])].sort();
@@ -972,6 +973,8 @@ document.addEventListener('click',e=>{const t=e.target.closest('button,a,i');if(
  if(t.closest('.side a'))setNav(false);
  if(t.id==='logout'){sessionStorage.removeItem('sid');localStorage.removeItem('sid');location.hash='#/'}
  if(t.dataset.del){const[m,id]=t.dataset.del.split(':');if(can(m)&&confirm('Hapus data ini?')){db[m]=db[m].filter(x=>x.id!==+id);save();render()}}
+ if(t.dataset.delc&&canDelCalon()){const c=db.users.find(x=>x.id===+t.dataset.delc&&x.role==='calon');
+  if(c&&confirm('Hapus pendaftar "'+c.nama+'"? Akun dan datanya hilang permanen.')){db.users=db.users.filter(x=>x!==c);save();render();toast('Pendaftar dihapus')}}
  if(t.dataset.delu&&can('role')&&confirm('Hapus akun panitia ini?')){db.users=db.users.filter(x=>x.id!==+t.dataset.delu);save();render()}
  if(t.dataset.csv!==undefined&&isStaff(u)){const c=s=>'"'+(/^[=+\-@]/.test(s)?"'":'')+String(s??'').replace(/"/g,'""')+'"';
   const r=[['Nama','No. HP','Sekolah','Kelas','Status'],...pdFiltered().map(x=>[x.nama,x.hp,x.data?.sekolah,x.data?.kelas,x.status])].map(r=>r.map(c).join(',')).join('\n');
