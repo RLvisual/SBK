@@ -2,7 +2,7 @@
 const $=(s,e=document)=>e.querySelector(s),$$=(s,e=document)=>[...e.querySelectorAll(s)];
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const hash=s=>{let h=5381;for(const c of 'saka$'+s)h=((h*33)^c.charCodeAt(0))>>>0;return h.toString(36)};
-const LOGO='<img src="assets/logo-saka.png" alt="Logo" onerror="this.style.display=\'none\'">';
+const LOGO='<img src="logo-saka.png" alt="Logo" onerror="this.style.display=\'none\'">';
 const STAT=['Menunggu Data','Menunggu Verifikasi','Seleksi Administrasi','Seleksi Wawancara','Tes Simulasi Kelompok','Lulus','Tidak Lulus'];
 const SCH=['MA Yapika Kurnia','MA YTI Sukamerang','SMA PGRI Kersamanah','SMK Bhakti Kusumah','SMAN 3 GARUT','MAN 5 GARUT','SMKS Santana 1&2 Cibatu','SMA PGRI Cibatu','SMA Al - Hikmah Cibatu'];
 /* ---------- Master Sekolah ---------- */
@@ -43,7 +43,6 @@ const MODS=[
 ];
 const ROLES={admin:['*'],ketua:MODS,wakil:['seleksi','pengumuman','tugas','aduan'],sekretaris:['pendaftar','pengumuman','tugas','aduan'],bendahara:['keuangan'],humas:['target','materi','pengumuman'],pendaftaran:['pendaftar','aduan'],teknis:['seleksi','tugas'],acara:['tugas','seleksi'],dokumentasi:['materi','pengumuman'],korwil_cibatu:['target','aduan'],korwil_kersamanah:['target','aduan']};
 const RL={admin:['Admin Sistem','Mengelola akun dan hak akses'],ketua:['Ketua Panitia','Pimpinan dan penanggung jawab kegiatan'],wakil:['Wakil Ketua','Mendampingi ketua; anggota aktif yang dipercaya'],sekretaris:['Sekretaris','Administrasi, surat, data calon, absensi, dokumen'],bendahara:['Bendahara','RAB, pemasukan/pengeluaran, bukti transaksi'],humas:['Divisi Humas & Promosi','Sosialisasi sekolah, komunikasi calon peserta, media sosial'],pendaftaran:['Divisi Pendaftaran & Administrasi','Formulir, verifikasi data, rekap peserta, izin orang tua'],teknis:['Divisi Teknis/Seleksi','Mekanisme seleksi, jadwal, penguji, penilaian'],acara:['Divisi Acara & Lapangan','Tempat, perlengkapan, rundown, konsumsi, koordinasi hari-H'],dokumentasi:['Divisi Dokumentasi & Publikasi','Foto/video, dokumentasi kegiatan, konten IG'],korwil_cibatu:['Koordinator Wilayah Cibatu','Koordinasi wilayah Cibatu'],korwil_kersamanah:['Koordinator Wilayah Kersamanah','Koordinasi wilayah Kersamanah']};
-const DEMO_PW='demo12345';
 const ALUR=[['Buat Akun','Daftarkan akun dengan data valid.'],['Lengkapi Data','Isi data pribadi dan asal sekolah.'],['Seleksi Administrasi','Berkas dan data diperiksa panitia.'],['Seleksi Wawancara','Wawancara bersama tim penguji.'],['Tes Simulasi Kelompok','Simulasi kerja sama dan kepemimpinan.']];
 const MOD={
   sekolah:{
@@ -111,7 +110,7 @@ async function cloudLoad(){
       cloudPush();
     }
   }catch(e){
-    toast('Sheet tidak terjangkau. Mode offline, data belum tersinkron.',1);
+    toast('Sheet tidak terjangkau ('+(e&&e.message||e)+'). Data belum tersinkron.',1);
   }
 }
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){toast('Penyimpanan penuh',1)}cloudPush()};
@@ -123,10 +122,15 @@ const nid=a=>a.reduce((m,x)=>Math.max(m,x.id||0),0)+1;
 const rp=n=>'Rp '+Number(n||0).toLocaleString('id-ID');
 const dt=d=>d?new Date(d).toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'}):'-';
 
-const DEMO=[['Admin','admin@saka.id','admin','Admin'],['Ketua Panitia','ketua@saka.id','ketua','Ketua'],['Sekretaris','sekretaris@saka.id','sekretaris','Sekretaris'],['Bendahara','bendahara@saka.id','bendahara','Bendahara'],['Calon Anggota','calon@saka.id','calon','Calon Anggota']];
-function ensureDemo(){let ch=0;DEMO.forEach(([nama,email,role])=>{let u=db.users.find(x=>x.email===email);
- if(!u){u={id:nid(db.users),nama,email,pw:hash(DEMO_PW),role};if(role==='calon'){u.status=STAT[1];u.data={nama:'Calon Anggota',tempat:'Garut',lahir:'2009-05-17',sekolah:'SMAN 3 GARUT',kelas:'X',hp:'081234567890'}}db.users.push(u);ch=1}
- else if(email==='admin@saka.id'&&u.role!=='admin'){u.role='admin';u.pw=hash(DEMO_PW);ch=1}});db.users.forEach(u=>{const m={Terverifikasi:STAT[2],Seleksi:STAT[3]};if(u.role==='calon'&&m[u.status]){u.status=m[u.status];ch=1}});
+const normHp=s=>{s=String(s||'').replace(/[\s.\-()]/g,'');if(s.startsWith('+62'))s='0'+s.slice(3);else if(s.startsWith('62'))s='0'+s.slice(2);return s};
+const okHp=s=>/^08\d{8,12}$/.test(s);
+const OLD_DEMO=['admin@saka.id','ketua@saka.id','sekretaris@saka.id','bendahara@saka.id','calon@saka.id'];
+function ensureDemo(){let ch=0;
+ /* bersihkan akun demo lama (password publik) */
+ const n0=db.users.length;db.users=db.users.filter(u=>!OLD_DEMO.includes(u.email));if(db.users.length!==n0)ch=1;
+ /* akun lama berbasis email: pindahkan no HP dari data pribadi bila ada */
+ db.users.forEach(u=>{if(!u.hp&&u.data&&u.data.hp&&okHp(normHp(u.data.hp))){u.hp=normHp(u.data.hp);ch=1}});
+ db.users.forEach(u=>{const m={Terverifikasi:STAT[2],Seleksi:STAT[3]};if(u.role==='calon'&&m[u.status]){u.status=m[u.status];ch=1}});
 db.tugas.forEach(t=>{const m={Belum:'Belum Dimulai',Proses:'Berjalan'};if(m[t.status]){t.status=m[t.status];ch=1}});
 /* ---------- Seed Master Sekolah ---------- */
 
@@ -236,15 +240,26 @@ function cell(m,x,f,ed=true){const[k,,t='']=f,v=x[k];
  if(k==='nominal')return rp(v);if(t==='date')return dt(v);return esc(v)}
 /* ---------- Halaman ---------- */
 const V={};
+const noAdmin=()=>!db.users.some(u=>u.role==='admin');
 V.login=(q)=>`<div class="auth"><div class="box"><span class="eyebrow">${q.p?'LOGIN PETUGAS':'PORTAL CALON ANGGOTA'}</span><h1>Masuk Akun</h1><p class="muted">Masuk untuk melanjutkan.</p>
-<form id="fLogin"><div class="fg"><label>Email</label><input type="email" name="email" required autocomplete="email" ></div>
+<form id="fLogin"><div class="fg"><label>No. HP</label><input type="tel" name="hp" required inputmode="numeric" autocomplete="tel" placeholder="08xxxxxxxxxx"></div>
 <div class="fg"><label>Password</label><input type="password" name="pw" required autocomplete="current-password"></div>
 <label><input type="checkbox" name="ingat"> Ingat saya</label><div class="err" id="err"></div><button class="btn">Masuk</button></form>
 <p class="alt">Belum punya akun? <a href="#/daftar">Daftar</a></p>
-<div class="demo"><small>AKUN DEMO (password: ${DEMO_PW}) — ketuk untuk mengisi</small><div class="row">${DEMO.map(d=>`<button type="button" class="btn ghost sm" data-fill="${d[1]}">${d[3]}</button>`).join('')}</div></div></div></div>`;
+${cloudOk&&noAdmin()?'<p class="alt"><a href="#/setup">Buat akun admin pertama</a></p>':''}</div></div>`;
+V.setup=()=>{
+  if(!cloudOk)return`<div class="auth"><div class="box"><h1>Memuat data...</h1><p class="muted">Tunggu sebentar lalu buka lagi halaman ini. Pastikan internet aktif.</p><a class="btn" href="#/login">Ke Login</a></div></div>`;
+  if(!noAdmin())return`<div class="auth"><div class="box"><h1>Tidak tersedia</h1><p class="muted">Akun admin sudah dibuat.</p><a class="btn" href="#/login">Ke Login</a></div></div>`;
+  return`<div class="auth"><div class="box"><span class="eyebrow">PENGATURAN AWAL</span><h1>Buat Akun Admin</h1><p class="muted">Akun ini mengelola semua akun panitia. Pakai password yang kuat.</p>
+<form id="fSetup"><div class="fg"><label>Nama Lengkap</label><input name="nama" required maxlength="80"></div>
+<div class="fg"><label>No. HP</label><input type="tel" name="hp" required inputmode="numeric" placeholder="08xxxxxxxxxx"></div>
+<div class="two"><div class="fg"><label>Password</label><input type="password" name="pw" minlength="8" required placeholder="Min. 8 karakter"></div>
+<div class="fg"><label>Konfirmasi</label><input type="password" name="pw2" required></div></div>
+<div class="err" id="err"></div><button class="btn">Buat Admin</button></form></div></div>`;
+};
 V.daftar=()=>`<div class="auth"><div class="box"><span class="eyebrow">PORTAL CALON ANGGOTA</span><h1>Buat Akun</h1><p class="muted">Buat akun untuk mulai mendaftar.</p>
 <form id="fReg"><div class="fg"><label>Nama Lengkap</label><input name="nama" required maxlength="80"></div>
-<div class="fg"><label>Email</label><input type="email" name="email" required></div>
+<div class="fg"><label>No. HP</label><input type="tel" name="hp" required inputmode="numeric" placeholder="08xxxxxxxxxx"></div>
 <div class="two"><div class="fg"><label>Password</label><input type="password" name="pw" minlength="8" required placeholder="Min. 8 karakter"></div>
 <div class="fg"><label>Konfirmasi</label><input type="password" name="pw2" required></div></div>
 <label><input type="checkbox" required> Data yang saya isi benar.</label><div class="err" id="err"></div><button class="btn">Buat Akun</button></form>
@@ -266,7 +281,7 @@ V.c_data=u=>{const d=u.data||{};const v=k=>esc(d[k]||'');return`<h1>Lengkapi Dat
   </select>
 </div>
 <div class="fg"><label>Kelas</label><select name="kelas" required>${['','X','XI','XII','Lulusan'].map(o=>`<option ${o===d.kelas?'selected':''} value="${o}">${o||'Pilih kelas'}</option>`).join('')}</select></div>
-<div class="fg"><label>No. HP</label><input type="tel" name="hp" value="${v('hp')}" required placeholder="08xxxxxxxxxx"></div><div class="err" id="err"></div><button class="btn">Simpan Data</button></form></div>`};
+<div class="fg"><label>No. HP</label><input type="tel" name="hp" value="${v('hp')||esc(u.hp||'')}" required placeholder="08xxxxxxxxxx"></div><div class="err" id="err"></div><button class="btn">Simpan Data</button></form></div>`};
 V.c_status=u=>{const i=STAT.indexOf(u.status),bad=u.status==='Tidak Lulus';return`<h1>Status Seleksi</h1><p class="muted">Posisi kamu saat ini: ${pill(u.status)}</p><div class="card tl">${STAT.filter(s=>s!=='Tidak Lulus'||bad).map((s,n)=>`<div class="${n<i?'done':n===i?'now':''}"><b>${n+1}</b><span>${s}</span></div>`).join('')}</div>`};
 /* ---------- Dashboard Helpers ---------- */
 
@@ -666,7 +681,7 @@ const calonAll=()=>db.users.filter(x=>x.role==='calon');
 function pdFiltered(){
   const q=PF.q.trim().toLowerCase();
   return calonAll().filter(x=>{
-    const text=(x.nama+' '+x.email+' '+(x.data?.sekolah||'')).toLowerCase();
+    const text=(x.nama+' '+(x.hp||'')+' '+(x.data?.sekolah||'')).toLowerCase();
     return (!q||text.includes(q))
       &&(!PF.sekolah||(x.data?.sekolah||'')===PF.sekolah)
       &&(!PF.status||x.status===PF.status);
@@ -686,8 +701,8 @@ function pdResults(){
     <div class="stat"><small>LULUS</small><b>${all.filter(x=>x.status==='Lulus').length}</b></div>
   </div>
   <p class="muted pendaftar-count">Menampilkan <b>${c.length}</b> dari <b>${all.length}</b> pendaftar${filtering?' (difilter)':''}</p>`+
-  table(['Nama','Email','Sekolah','Kelas','HP','Data','Status'],c.map(x=>`<tr>
-    <td>${esc(x.nama)}</td><td>${esc(x.email)}</td><td>${esc(x.data?.sekolah||'-')}</td><td>${esc(x.data?.kelas||'-')}</td><td>${esc(x.data?.hp||'-')}</td><td>${prog(x)}%</td>
+  table(['Nama','No. HP','Sekolah','Kelas','Data','Status'],c.map(x=>`<tr>
+    <td>${esc(x.nama)}</td><td>${esc(x.hp||'-')}</td><td>${esc(x.data?.sekolah||'-')}</td><td>${esc(x.data?.kelas||'-')}</td><td>${prog(x)}%</td>
     <td><select data-st="${x.id}" aria-label="Status ${esc(x.nama)}" ${ed?'':'disabled'}>${STAT.map(s=>`<option ${s===x.status?'selected':''}>${s}</option>`).join('')}</select></td></tr>`),empty);
 }
 V.p_pendaftar=u=>{
@@ -695,7 +710,7 @@ V.p_pendaftar=u=>{
   return`<h1>Data Pendaftar</h1>${badge(can('pendaftar'))}
   <div class="card" style="margin-top:12px">
     <div class="pendaftar-tools">
-      <input id="cari" type="search" placeholder="Cari nama / email / sekolah" aria-label="Cari pendaftar" value="${esc(PF.q)}" maxlength="80">
+      <input id="cari" type="search" placeholder="Cari nama / no. HP / sekolah" aria-label="Cari pendaftar" value="${esc(PF.q)}" maxlength="80">
       <select id="filterSekolah" aria-label="Filter sekolah"><option value="">Semua Sekolah</option>${sekolahList.map(s=>`<option value="${esc(s)}" ${s===PF.sekolah?'selected':''}>${esc(s)}</option>`).join('')}</select>
       <select id="filterStatus" aria-label="Filter status"><option value="">Semua Status</option>${STAT.map(s=>`<option value="${esc(s)}" ${s===PF.status?'selected':''}>${esc(s)}</option>`).join('')}</select>
       <button class="btn ghost sm" data-csv>Ekspor CSV</button>
@@ -706,8 +721,8 @@ V.p_pendaftar=u=>{
 const badge=ed=>`<p class="mode ${ed?'edit':''}">${ed?'✎ Mode Edit':'👁 Hanya Lihat'}</p>`;
 V.p_role=u=>{const ad=can('role'),ro=r=>`<option value="${r}">${RL[r][0]}</option>`;return`<h1>Struktur & Role Panitia</h1>${badge(ad)}<p class="muted">Semua panitia melihat menu yang sama. Perbedaannya hanya hak Edit atau Lihat tiap modul.</p>
 <div class="org">${Object.keys(RL).filter(r=>r!=='admin').map(r=>{const ms=db.users.filter(x=>x.role===r);return`<div class="card"><b>${RL[r][0]}</b><p class="muted">${RL[r][1]}</p><small>${ms.length?ms.map(x=>esc(x.nama)).join(', '):'Belum ada anggota'}</small><div class="acc">Edit: ${ROLES[r].join(', ')}</div></div>`}).join('')}</div>`+
-(ad?`<div class="card"><form data-add="panitia"><div class="two"><div class="fg"><label>Nama</label><input name="nama" required maxlength="80"></div><div class="fg"><label>Email</label><input type="email" name="email" required></div></div><div class="two"><div class="fg"><label>Password</label><input type="password" name="pw" minlength="8" required></div><div class="fg"><label>Jabatan</label><select name="role">${Object.keys(ROLES).map(ro).join('')}</select></div></div><button class="btn sm">Tambah Panitia</button></form></div>`:'')+
-table(['Nama','Email','Jabatan',...(ad?['']:[])],db.users.filter(x=>x.role!=='calon').map(x=>`<tr><td>${esc(x.nama)}</td><td>${esc(x.email)}</td><td><select data-role="${x.id}" ${ad&&x.id!==u.id?'':'disabled'}>${Object.keys(ROLES).map(r=>`<option value="${r}" ${r===x.role?'selected':''}>${RL[r][0]}</option>`).join('')}</select></td>${ad?`<td>${x.id===u.id?'':`<button class="btn red sm" data-delu="${x.id}">Hapus</button>`}</td>`:''}</tr>`))};
+(ad?`<div class="card"><form data-add="panitia"><div class="two"><div class="fg"><label>Nama</label><input name="nama" required maxlength="80"></div><div class="fg"><label>No. HP</label><input type="tel" name="hp" required inputmode="numeric" placeholder="08xxxxxxxxxx"></div></div><div class="two"><div class="fg"><label>Password</label><input type="password" name="pw" minlength="8" required></div><div class="fg"><label>Jabatan</label><select name="role">${Object.keys(ROLES).map(ro).join('')}</select></div></div><button class="btn sm">Tambah Panitia</button></form></div>`:'')+
+table(['Nama','No. HP','Jabatan',...(ad?['']:[])],db.users.filter(x=>x.role!=='calon').map(x=>`<tr><td>${esc(x.nama)}</td><td>${esc(x.hp||'-')}</td><td><select data-role="${x.id}" ${ad&&x.id!==u.id?'':'disabled'}>${Object.keys(ROLES).map(r=>`<option value="${r}" ${r===x.role?'selected':''}>${RL[r][0]}</option>`).join('')}</select></td>${ad?`<td>${x.id===u.id?'':`<button class="btn red sm" data-delu="${x.id}">Hapus</button>`}</td>`:''}</tr>`))};
 
 /* ---------- Helper Tugas ---------- */
 function staffByRole(role){
@@ -821,7 +836,7 @@ ${items.map(([h,l])=>`<a href="#/${h}" class="${h===cur?'on':''}">${l}</a>`).joi
 function render0(){
  const[path,qs]=(location.hash.slice(2)||'').split('?'),q=Object.fromEntries(new URLSearchParams(qs||'')),u=me(),L=$('#landing'),A=$('#app'),T=$('#topbar');
  $('#navLinks').classList.remove('open');
- const pub=!path||['tentang','alur','sekolah','pengumuman','status'].includes(path),auth=['login','daftar'].includes(path);
+ const pub=!path||['tentang','alur','sekolah','pengumuman','status'].includes(path),auth=['login','daftar','setup'].includes(path);
  if(pub){A.hidden=true;L.hidden=false;T.hidden=false;
   $('#pubAnn').innerHTML=anns(3);$('#pubStatus').textContent=u?`Halo ${u.nama}, kamu sudah masuk.`:'Silakan masuk untuk melihat status pendaftaranmu.';
   $('#pubStatusBtn').innerHTML=u?`<a class="btn" href="#/${isStaff(u)?'p/dashboard':'c/dashboard'}">Buka Dashboard</a>`:'<a class="btn" href="#/login">Masuk Akun</a><a class="btn ghost" href="#/daftar">Daftar Akun</a>';
@@ -843,20 +858,31 @@ const go=u=>{location.hash=isStaff(u)?'#/p/dashboard':'#/c/dashboard'};
 let fails=0,lock=0;
 document.addEventListener('submit',e=>{const f=e.target;e.preventDefault();const d=Object.fromEntries(new FormData(f)),er=$('#err');
  if(f.id==='fLogin'){if(Date.now()<lock)return er.textContent='Terlalu banyak percobaan. Coba lagi sebentar.';
-  const u=db.users.find(x=>x.email===d.email.trim().toLowerCase()&&x.pw===hash(d.pw));
-  if(!u){if(++fails>=5){lock=Date.now()+30000;fails=0}return er.textContent='Email atau password salah.'}
+  const u=db.users.find(x=>x.hp&&x.hp===normHp(d.hp)&&x.pw===hash(d.pw));
+  if(!u){if(++fails>=5){lock=Date.now()+30000;fails=0}return er.textContent='No. HP atau password salah.'}
   fails=0;sessionStorage.removeItem('sid');localStorage.removeItem('sid');(d.ingat?localStorage:sessionStorage).setItem('sid',u.id);go(u)}
- else if(f.id==='fReg'){const em=d.email.trim().toLowerCase();
+ else if(f.id==='fSetup'){
+  if(!cloudOk||!noAdmin())return er.textContent='Pengaturan awal tidak tersedia.';
+  const hp=normHp(d.hp);
   if(d.nama.trim().length<3)return er.textContent='Nama minimal 3 karakter.';
+  if(!okHp(hp))return er.textContent='No. HP tidak valid. Contoh: 081234567890';
   if(d.pw.length<8)return er.textContent='Password minimal 8 karakter.';
   if(d.pw!==d.pw2)return er.textContent='Konfirmasi password tidak sama.';
-  if(db.users.some(x=>x.email===em))return er.textContent='Email sudah terdaftar.';
-  const u={id:nid(db.users),nama:d.nama.trim(),email:em,pw:hash(d.pw),role:'calon',status:STAT[0],data:{}};db.users.push(u);save();sessionStorage.setItem('sid',u.id);toast('Akun berhasil dibuat');location.hash='#/c/data'}
+  if(db.users.some(x=>x.hp===hp))return er.textContent='No. HP sudah terdaftar.';
+  const u={id:nid(db.users),nama:d.nama.trim(),hp,pw:hash(d.pw),role:'admin'};db.users.push(u);save();
+  sessionStorage.setItem('sid',u.id);toast('Akun admin dibuat');go(u)}
+ else if(f.id==='fReg'){const hp=normHp(d.hp);
+  if(d.nama.trim().length<3)return er.textContent='Nama minimal 3 karakter.';
+  if(!okHp(hp))return er.textContent='No. HP tidak valid. Contoh: 081234567890';
+  if(d.pw.length<8)return er.textContent='Password minimal 8 karakter.';
+  if(d.pw!==d.pw2)return er.textContent='Konfirmasi password tidak sama.';
+  if(db.users.some(x=>x.hp===hp))return er.textContent='No. HP sudah terdaftar.';
+  const u={id:nid(db.users),nama:d.nama.trim(),hp,pw:hash(d.pw),role:'calon',status:STAT[0],data:{}};db.users.push(u);save();sessionStorage.setItem('sid',u.id);toast('Akun berhasil dibuat');location.hash='#/c/data'}
  else if(f.id==='fData'){if(!/^(\+62|62|0)8\d{8,12}$/.test(d.hp.replace(/[\s-]/g,'')))return er.textContent='Nomor HP tidak valid.';
   if(new Date(d.lahir)>new Date())return er.textContent='Tanggal lahir tidak valid.';
   const u=me();u.data={...d};if(u.status===STAT[0])u.status=STAT[1];save();toast('Data berhasil disimpan');location.hash='#/c/dashboard'}
- else if(f.dataset.add==='panitia'){if(!can('role'))return;const em=d.email.trim().toLowerCase();if(db.users.some(x=>x.email===em))return toast('Email sudah terdaftar',1);
-  db.users.push({id:nid(db.users),nama:d.nama.trim(),email:em,pw:hash(d.pw),role:ROLES[d.role]?d.role:'humas'});save();render();toast('Panitia ditambahkan')}
+ else if(f.dataset.add==='panitia'){if(!can('role'))return;const hp=normHp(d.hp);if(!okHp(hp))return toast('No. HP tidak valid',1);if(db.users.some(x=>x.hp===hp))return toast('No. HP sudah terdaftar',1);
+  db.users.push({id:nid(db.users),nama:d.nama.trim(),hp,pw:hash(d.pw),role:ROLES[d.role]?d.role:'humas'});save();render();toast('Panitia ditambahkan')}
 else if(f.dataset.add){
   const m=f.dataset.add;
 
@@ -941,7 +967,6 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')setNav(false)});
 window.addEventListener('resize',()=>{if(innerWidth>900)setNav(false)});
 document.addEventListener('click',e=>{const t=e.target.closest('button,a,i');if(!t)return;const u=me();
  if(t.dataset.pdreset!==undefined){PF.q=PF.sekolah=PF.status='';render()}
- if(t.dataset.fill){const f=$('#fLogin');f.email.value=t.dataset.fill;f.pw.value=DEMO_PW;f.pw.focus()}
  if(t.id==='burger'||t.parentElement?.id==='burger')$('#navLinks').classList.toggle('open');
  if(t.id==='sb'||t.parentElement?.id==='sb')setNav(!$('#side')?.classList.contains('open'));
  if(t.closest('.side a'))setNav(false);
@@ -949,7 +974,7 @@ document.addEventListener('click',e=>{const t=e.target.closest('button,a,i');if(
  if(t.dataset.del){const[m,id]=t.dataset.del.split(':');if(can(m)&&confirm('Hapus data ini?')){db[m]=db[m].filter(x=>x.id!==+id);save();render()}}
  if(t.dataset.delu&&can('role')&&confirm('Hapus akun panitia ini?')){db.users=db.users.filter(x=>x.id!==+t.dataset.delu);save();render()}
  if(t.dataset.csv!==undefined&&isStaff(u)){const c=s=>'"'+(/^[=+\-@]/.test(s)?"'":'')+String(s??'').replace(/"/g,'""')+'"';
-  const r=[['Nama','Email','Sekolah','Kelas','HP','Status'],...pdFiltered().map(x=>[x.nama,x.email,x.data?.sekolah,x.data?.kelas,x.data?.hp,x.status])].map(r=>r.map(c).join(',')).join('\n');
+  const r=[['Nama','No. HP','Sekolah','Kelas','Status'],...pdFiltered().map(x=>[x.nama,x.hp,x.data?.sekolah,x.data?.kelas,x.status])].map(r=>r.map(c).join(',')).join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+r],{type:'text/csv'}));a.download='pendaftar-saka.csv';a.click()}});
 document.addEventListener('change',e=>{const t=e.target,u=me();
 
