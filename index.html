@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rekrutmen Saka Bhayangkara</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="opening" id="opening"><div class="ring"></div><img class="lg" src="assets/logo-saka.png" alt="Logo"><h1>SAKA BHAYANGKARA</h1><p>SISTEM REKRUTMEN ANGGOTA</p></div>
+
+<header class="navbar" id="topbar">
+  <a href="#/" class="brand"><img class="lg" src="assets/logo-saka.png" alt="Logo"><div><span>SISTEM REKRUTMEN</span><strong>SAKA BHAYANGKARA</strong></div></a>
+  <nav class="links" id="navLinks">
+    <a href="#/tentang">Tentang</a><a href="#/alur">Alur</a><a href="#/sekolah">Sekolah</a><a href="#/pengumuman">Pengumuman</a>
+    <a href="#/login?p=1" class="btn ghost">Login Petugas</a>
+  </nav>
+  <button class="burger" id="burger" aria-label="Menu"><i></i><i></i><i></i></button>
+</header>
+
+<div id="landing">
+  <section class="hero">
+    <div><p class="eyebrow">PORTAL REKRUTMEN ANGGOTA</p>
+      <h1>Selamat Datang<br><em>Calon Anggota</em></h1>
+      <p class="muted">Bergabunglah bersama Saka Bhayangkara dan jadilah generasi muda yang disiplin, tangguh, dan berkarakter.</p>
+      <div class="row"><a href="#/daftar" class="btn">Daftar Akun</a><a href="#/login" class="btn ghost">Masuk Akun</a></div></div>
+    <div class="badge"><img class="lg" src="assets/logo-saka.png" alt="Logo"></div>
+  </section>
+  <section class="sec" id="tentang"><span class="eyebrow">TENTANG KAMI</span><h2>Saka Bhayangkara</h2>
+    <p class="muted">Wadah kegiatan generasi muda untuk mengembangkan pengetahuan, keterampilan, kedisiplinan, kepemimpinan, serta kepedulian terhadap lingkungan dan masyarakat.</p>
+    <div class="grid3"><div class="card"><b class="y">01</b> Kepemimpinan</div><div class="card"><b class="y">02</b> Kedisiplinan</div><div class="card"><b class="y">03</b> Pengabdian</div></div></section>
+  <section class="sec" id="alur"><span class="eyebrow">TAHAPAN</span><h2>Alur Rekrutmen</h2>
+    <div class="grid2" id="alurList"></div></section>
+  <section class="sec" id="sekolah"><span class="eyebrow">SASARAN SOSIALISASI</span><h2>Sekolah Sasaran</h2><div id="sekolahList"></div></section>
+  <section class="sec" id="pengumuman"><span class="eyebrow">INFORMASI TERBARU</span><h2>Pengumuman</h2><div id="pubAnn"></div></section>
+  <section class="sec" id="status"><span class="eyebrow">STATUS PESERTA</span><h2>Status Pendaftaran</h2>
+    <div class="card"><p class="muted" id="pubStatus"></p><div class="row" id="pubStatusBtn"></div></div></section>
+  <footer>© 2026 Saka Bhayangkara</footer>
+</div>
+
+<main id="app" hidden></main>
+<div id="toast" class="toast"></div>
+<script src="script.js"></script>
+</body>
+</html>
