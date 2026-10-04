@@ -731,10 +731,12 @@ function staffByRole(role){
 }
 
 function roleOptions(){
-  return Object.keys(ROLES)
-    .filter(r => r !== 'admin')
+  /* hanya divisi yang sudah punya anggota (admin ikut bila ada akunnya) */
+  const o=Object.keys(ROLES)
+    .filter(r => staffByRole(r).length)
     .map(r => `<option value="${r}">${RL[r]?.[0] || r}</option>`)
     .join('');
+  return o||'<option value="" disabled>Belum ada akun panitia. Buat dulu di Struktur & Role</option>';
 }
 
 function memberOptions(role){
