@@ -41,8 +41,8 @@ const MODS=[
   'aduan',
   'keuangan'
 ];
-const ROLES={admin:['*'],ketua:MODS,wakil:['seleksi','pengumuman','tugas','aduan'],sekretaris:['pendaftar','pengumuman','tugas','aduan'],bendahara:['keuangan'],humas:['target','materi','pengumuman'],pendaftaran:['pendaftar','aduan'],teknis:['seleksi','tugas'],acara:['tugas','seleksi'],dokumentasi:['materi','pengumuman'],korwil_cibatu:['target','aduan'],korwil_kersamanah:['target','aduan']};
-const RL={admin:['Admin Sistem','Mengelola akun dan hak akses'],ketua:['Ketua Panitia','Pimpinan dan penanggung jawab kegiatan'],wakil:['Wakil Ketua','Mendampingi ketua; anggota aktif yang dipercaya'],sekretaris:['Sekretaris','Administrasi, surat, data calon, absensi, dokumen'],bendahara:['Bendahara','RAB, pemasukan/pengeluaran, bukti transaksi'],humas:['Divisi Humas & Promosi','Sosialisasi sekolah, komunikasi calon peserta, media sosial'],pendaftaran:['Divisi Pendaftaran & Administrasi','Formulir, verifikasi data, rekap peserta, izin orang tua'],teknis:['Divisi Teknis/Seleksi','Mekanisme seleksi, jadwal, penguji, penilaian'],acara:['Divisi Acara & Lapangan','Tempat, perlengkapan, rundown, konsumsi, koordinasi hari-H'],dokumentasi:['Divisi Dokumentasi & Publikasi','Foto/video, dokumentasi kegiatan, konten IG'],korwil_cibatu:['Koordinator Wilayah Cibatu','Koordinasi wilayah Cibatu'],korwil_kersamanah:['Koordinator Wilayah Kersamanah','Koordinasi wilayah Kersamanah']};
+const ROLES={admin:['*'],pembina:MODS,ketua:MODS,wakil:['seleksi','pengumuman','tugas','aduan'],sekretaris:['pendaftar','pengumuman','tugas','aduan'],bendahara:['keuangan'],humas:['target','materi','pengumuman'],pendaftaran:['pendaftar','aduan'],teknis:['seleksi','tugas'],acara:['tugas','seleksi'],dokumentasi:['materi','pengumuman'],korwil_cibatu:['target','aduan'],korwil_kersamanah:['target','aduan']};
+const RL={admin:['Admin Sistem','Mengelola akun dan hak akses'],pembina:['Pembina','Pembimbing dan pengawas kegiatan; memberi arahan dan persetujuan'],ketua:['Ketua Panitia','Pimpinan dan penanggung jawab kegiatan'],wakil:['Wakil Ketua','Mendampingi ketua; anggota aktif yang dipercaya'],sekretaris:['Sekretaris','Administrasi, surat, data calon, absensi, dokumen'],bendahara:['Bendahara','RAB, pemasukan/pengeluaran, bukti transaksi'],humas:['Divisi Humas & Promosi','Sosialisasi sekolah, komunikasi calon peserta, media sosial'],pendaftaran:['Divisi Pendaftaran & Administrasi','Formulir, verifikasi data, rekap peserta, izin orang tua'],teknis:['Divisi Teknis/Seleksi','Mekanisme seleksi, jadwal, penguji, penilaian'],acara:['Divisi Acara & Lapangan','Tempat, perlengkapan, rundown, konsumsi, koordinasi hari-H'],dokumentasi:['Divisi Dokumentasi & Publikasi','Foto/video, dokumentasi kegiatan, konten IG'],korwil_cibatu:['Koordinator Wilayah Cibatu','Koordinasi wilayah Cibatu'],korwil_kersamanah:['Koordinator Wilayah Kersamanah','Koordinasi wilayah Kersamanah']};
 const ALUR=[['Buat Akun','Daftarkan akun dengan data valid.'],['Lengkapi Data','Isi data pribadi dan asal sekolah.'],['Seleksi Administrasi','Berkas dan data diperiksa panitia.'],['Seleksi Wawancara','Wawancara bersama tim penguji.'],['Tes Simulasi Kelompok','Simulasi kerja sama dan kepemimpinan.']];
 const MOD={
   sekolah:{
@@ -117,7 +117,20 @@ const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){toast(
 const sess=()=>sessionStorage.getItem('sid')||localStorage.getItem('sid');
 const me=()=>db.users.find(u=>String(u.id)===sess());
 const isStaff=u=>u&&u.role!=='calon';
-const can=(m,u=me())=>isStaff(u)&&(ROLES[u.role]||[]).some(p=>p==='*'||p===m);
+const ROLE_KEYS=Object.keys(RL);
+/* Siapa yang boleh edit struktur: 'semua' = seluruh panitia, atau daftar role, contoh ['ketua','sekretaris'] (admin selalu boleh) */
+const STRUKTUR_EDIT='semua';
+/* Satu orang boleh punya banyak bidang: u.roles = daftar semua bidang, u.role = bidang utama (pertama) */
+const userRoles=u=>{if(!u)return[];const s=new Set([u.role,...(Array.isArray(u.roles)?u.roles:[])]);return ROLE_KEYS.filter(r=>s.has(r))};
+const isAdmin=u=>userRoles(u).includes('admin');
+const roleLabel=u=>userRoles(u).map(r=>RL[r][0]).join(' + ')||'-';
+const roleChips=u=>userRoles(u).map(r=>`<span class="rchip${r==='admin'?' adm':''}">${esc(RL[r][0])}</span>`).join('')||'-';
+const can=(m,u=me())=>isStaff(u)&&userRoles(u).some(r=>(ROLES[r]||[]).some(p=>p==='*'||p===m));
+const canStruktur=(u=me())=>isStaff(u)&&(isAdmin(u)||STRUKTUR_EDIT==='semua'||(Array.isArray(STRUKTUR_EDIT)&&userRoles(u).some(r=>STRUKTUR_EDIT.includes(r))));
+/* panitia non-admin tidak boleh mengubah akun admin & jabatannya sendiri (cegah naik hak akses sendiri) */
+const canEditRoles=(a,t)=>!!a&&!!t&&canStruktur(a)&&(isAdmin(a)||(!isAdmin(t)&&a.id!==t.id));
+const pwIn=(name,extra='')=>`<div class="pw"><input type="password" name="${name}" ${extra}><button type="button" class="pw-t" data-pw aria-label="Tampilkan password" aria-pressed="false"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/><line class="sl" x1="3" y1="3" x2="21" y2="21"/></svg></button></div>`;
+const rolePick=(sel,adm,lock)=>ROLE_KEYS.filter(r=>adm||r!=='admin').map(r=>`<label class="rp"><input type="checkbox" name="roles" value="${r}" ${sel.includes(r)?'checked':''} ${r==='admin'&&lock?'disabled':''}><span><b>${RL[r][0]}</b><small>${RL[r][1]}</small></span></label>`).join('');
 const nid=a=>a.reduce((m,x)=>Math.max(m,x.id||0),0)+1;
 const rp=n=>'Rp '+Number(n||0).toLocaleString('id-ID');
 const dt=d=>d?new Date(d).toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'}):'-';
@@ -128,6 +141,7 @@ const OLD_DEMO=['admin@saka.id','ketua@saka.id','sekretaris@saka.id','bendahara@
 function ensureDemo(){let ch=0;
  /* bersihkan akun demo lama (password publik) */
  const n0=db.users.length;db.users=db.users.filter(u=>!OLD_DEMO.includes(u.email));if(db.users.length!==n0)ch=1;
+ db.users.forEach(u=>{if(u.role!=='calon'&&!Array.isArray(u.roles)){u.roles=[u.role];ch=1}});
  /* akun lama berbasis email: pindahkan no HP dari data pribadi bila ada */
  db.users.forEach(u=>{if(!u.hp&&u.data&&u.data.hp&&okHp(normHp(u.data.hp))){u.hp=normHp(u.data.hp);ch=1}});
  db.users.forEach(u=>{const m={Terverifikasi:STAT[2],Seleksi:STAT[3]};if(u.role==='calon'&&m[u.status]){u.status=m[u.status];ch=1}});
@@ -203,7 +217,7 @@ function field(f,v=''){
         ${
           staff.map(u=>
             `<option value="${u.id}" ${String(u.id)===String(v)?'selected':''}>
-              ${esc(u.nama)} — ${esc(RL[u.role]?.[0]||u.role)}
+              ${esc(u.nama)} — ${esc(roleLabel(u))}
             </option>`
           ).join('')
         }
@@ -243,7 +257,7 @@ const V={};
 const noAdmin=()=>!db.users.some(u=>u.role==='admin');
 V.login=(q)=>`<div class="auth"><div class="box"><span class="eyebrow">${q.p?'LOGIN PETUGAS':'PORTAL CALON ANGGOTA'}</span><h1>Masuk Akun</h1><p class="muted">Masuk untuk melanjutkan.</p>
 <form id="fLogin"><div class="fg"><label>No. HP</label><input type="tel" name="hp" required inputmode="numeric" autocomplete="tel" placeholder="08xxxxxxxxxx"></div>
-<div class="fg"><label>Password</label><input type="password" name="pw" required autocomplete="current-password"></div>
+<div class="fg"><label>Password</label>${pwIn('pw','required autocomplete="current-password"')}</div>
 <label><input type="checkbox" name="ingat"> Ingat saya</label><div class="err" id="err"></div><button class="btn">Masuk</button></form>
 <p class="alt">Belum punya akun? <a href="#/daftar">Daftar</a></p>
 ${cloudOk&&noAdmin()?'<p class="alt"><a href="#/setup">Buat akun admin pertama</a></p>':''}</div></div>`;
@@ -253,15 +267,15 @@ V.setup=()=>{
   return`<div class="auth"><div class="box"><span class="eyebrow">PENGATURAN AWAL</span><h1>Buat Akun Admin</h1><p class="muted">Akun ini mengelola semua akun panitia. Pakai password yang kuat.</p>
 <form id="fSetup"><div class="fg"><label>Nama Lengkap</label><input name="nama" required maxlength="80"></div>
 <div class="fg"><label>No. HP</label><input type="tel" name="hp" required inputmode="numeric" placeholder="08xxxxxxxxxx"></div>
-<div class="two"><div class="fg"><label>Password</label><input type="password" name="pw" minlength="8" required placeholder="Min. 8 karakter"></div>
-<div class="fg"><label>Konfirmasi</label><input type="password" name="pw2" required></div></div>
+<div class="two"><div class="fg"><label>Password</label>${pwIn('pw','minlength="8" required placeholder="Min. 8 karakter" autocomplete="new-password"')}</div>
+<div class="fg"><label>Konfirmasi</label>${pwIn('pw2','required autocomplete="new-password"')}</div></div>
 <div class="err" id="err"></div><button class="btn">Buat Admin</button></form></div></div>`;
 };
 V.daftar=()=>`<div class="auth"><div class="box"><span class="eyebrow">PORTAL CALON ANGGOTA</span><h1>Buat Akun</h1><p class="muted">Buat akun untuk mulai mendaftar.</p>
 <form id="fReg"><div class="fg"><label>Nama Lengkap</label><input name="nama" required maxlength="80"></div>
 <div class="fg"><label>No. HP</label><input type="tel" name="hp" required inputmode="numeric" placeholder="08xxxxxxxxxx"></div>
-<div class="two"><div class="fg"><label>Password</label><input type="password" name="pw" minlength="8" required placeholder="Min. 8 karakter"></div>
-<div class="fg"><label>Konfirmasi</label><input type="password" name="pw2" required></div></div>
+<div class="two"><div class="fg"><label>Password</label>${pwIn('pw','minlength="8" required placeholder="Min. 8 karakter" autocomplete="new-password"')}</div>
+<div class="fg"><label>Konfirmasi</label>${pwIn('pw2','required autocomplete="new-password"')}</div></div>
 <label><input type="checkbox" required> Data yang saya isi benar.</label><div class="err" id="err"></div><button class="btn">Buat Akun</button></form>
 <p class="alt">Sudah punya akun? <a href="#/login">Masuk</a></p></div></div>`;
 const anns=n=>db.pengumuman.slice(-n).reverse().map(a=>`<div class="card"><span class="eyebrow">${dt(a.tanggal)}</span><h3>${esc(a.judul)}</h3><p class="muted">${esc(a.isi)}</p></div>`).join('')||'<div class="card muted">Belum ada pengumuman.</div>';
@@ -678,7 +692,6 @@ V.p_dash=u=>{
 /* ---------- Data Pendaftar ---------- */
 const PF={q:'',sekolah:'',status:''};
 const calonAll=()=>db.users.filter(x=>x.role==='calon');
-const canDelCalon=(u=me())=>!!u&&(u.role==='admin'||u.role==='ketua');
 function pdFiltered(){
   const q=PF.q.trim().toLowerCase();
   return calonAll().filter(x=>{
@@ -689,7 +702,7 @@ function pdFiltered(){
   });
 }
 function pdResults(){
-  const all=calonAll(),c=pdFiltered(),ed=can('pendaftar'),dl=canDelCalon();
+  const all=calonAll(),c=pdFiltered(),ed=can('pendaftar');
   const filtering=!!(PF.q.trim()||PF.sekolah||PF.status);
   const empty=!all.length
     ?'Belum ada pendaftar. Data akan muncul setelah calon membuat akun.'
@@ -702,9 +715,9 @@ function pdResults(){
     <div class="stat"><small>LULUS</small><b>${all.filter(x=>x.status==='Lulus').length}</b></div>
   </div>
   <p class="muted pendaftar-count">Menampilkan <b>${c.length}</b> dari <b>${all.length}</b> pendaftar${filtering?' (difilter)':''}</p>`+
-  table(['Nama','No. HP','Sekolah','Kelas','Data','Status',...(dl?['']:[])],c.map(x=>`<tr>
+  table(['Nama','No. HP','Sekolah','Kelas','Data','Status'],c.map(x=>`<tr>
     <td>${esc(x.nama)}</td><td>${esc(x.hp||'-')}</td><td>${esc(x.data?.sekolah||'-')}</td><td>${esc(x.data?.kelas||'-')}</td><td>${prog(x)}%</td>
-    <td><select data-st="${x.id}" aria-label="Status ${esc(x.nama)}" ${ed?'':'disabled'}>${STAT.map(s=>`<option ${s===x.status?'selected':''}>${s}</option>`).join('')}</select></td>${dl?`<td><button class="btn red sm" data-delc="${x.id}">Hapus</button></td>`:''}</tr>`),empty);
+    <td><select data-st="${x.id}" aria-label="Status ${esc(x.nama)}" ${ed?'':'disabled'}>${STAT.map(s=>`<option ${s===x.status?'selected':''}>${s}</option>`).join('')}</select></td></tr>`),empty);
 }
 V.p_pendaftar=u=>{
   const sekolahList=[...new Set([...schoolList(),...calonAll().map(x=>x.data?.sekolah).filter(Boolean)])].sort();
@@ -720,23 +733,41 @@ V.p_pendaftar=u=>{
   <div id="pdResults">${pdResults()}</div>`;
 };
 const badge=ed=>`<p class="mode ${ed?'edit':''}">${ed?'✎ Mode Edit':'👁 Hanya Lihat'}</p>`;
-V.p_role=u=>{const ad=can('role'),ro=r=>`<option value="${r}">${RL[r][0]}</option>`;return`<h1>Struktur & Role Panitia</h1>${badge(ad)}<p class="muted">Semua panitia melihat menu yang sama. Perbedaannya hanya hak Edit atau Lihat tiap modul.</p>
-<div class="org">${Object.keys(RL).filter(r=>r!=='admin').map(r=>{const ms=db.users.filter(x=>x.role===r);return`<div class="card"><b>${RL[r][0]}</b><p class="muted">${RL[r][1]}</p><small>${ms.length?ms.map(x=>esc(x.nama)).join(', '):'Belum ada anggota'}</small><div class="acc">Edit: ${ROLES[r].join(', ')}</div></div>`}).join('')}</div>`+
-(ad?`<div class="card"><form data-add="panitia"><div class="two"><div class="fg"><label>Nama</label><input name="nama" required maxlength="80"></div><div class="fg"><label>No. HP</label><input type="tel" name="hp" required inputmode="numeric" placeholder="08xxxxxxxxxx"></div></div><div class="two"><div class="fg"><label>Password</label><input type="password" name="pw" minlength="8" required></div><div class="fg"><label>Jabatan</label><select name="role">${Object.keys(ROLES).map(ro).join('')}</select></div></div><button class="btn sm">Tambah Panitia</button></form></div>`:'')+
-table(['Nama','No. HP','Jabatan',...(ad?['']:[])],db.users.filter(x=>x.role!=='calon').map(x=>`<tr><td>${esc(x.nama)}</td><td>${esc(x.hp||'-')}</td><td><select data-role="${x.id}" ${ad&&x.id!==u.id?'':'disabled'}>${Object.keys(ROLES).map(r=>`<option value="${r}" ${r===x.role?'selected':''}>${RL[r][0]}</option>`).join('')}</select></td>${ad?`<td>${x.id===u.id?'':`<button class="btn red sm" data-delu="${x.id}">Hapus</button>`}</td>`:''}</tr>`))};
+V.p_role=u=>{
+ const adm=can('role'),ed=canStruktur(u),mem=r=>db.users.filter(x=>isStaff(x)&&userRoles(x).includes(r)),nb=x=>userRoles(x).filter(r=>r!=='admin').length;
+ return`<h1>Struktur & Role Panitia</h1>${badge(ed)}<p class="muted">Satu orang boleh memegang lebih dari satu bidang. Hak edit tiap modul adalah gabungan dari semua bidang yang dipegang.</p>
+<div class="org">${ROLE_KEYS.filter(r=>r!=='admin').map(r=>{const ms=mem(r);return`<div class="card"><b>${RL[r][0]}</b><p class="muted">${RL[r][1]}</p><small>${ms.length?ms.map(x=>esc(x.nama)+(nb(x)>1?` <span class="dbl">${nb(x)} bidang</span>`:'')).join(', '):'Belum ada anggota'}</small><div class="acc">Edit: ${ROLES[r].join(', ')}</div></div>`}).join('')}</div>`+
+(adm?`<div class="card"><form data-add="panitia"><div class="two"><div class="fg"><label>Nama</label><input name="nama" required maxlength="80"></div><div class="fg"><label>No. HP</label><input type="tel" name="hp" required inputmode="numeric" placeholder="08xxxxxxxxxx"></div></div><div class="fg"><label>Password</label>${pwIn('pw','minlength="8" required autocomplete="new-password"')}</div><div class="fg"><label>Bidang / Jabatan (boleh lebih dari satu)</label><div class="rolepick">${rolePick([],true)}</div></div><button class="btn sm">Tambah Panitia</button></form></div>`:'')+
+table(['Nama','No. HP','Bidang / Jabatan',''],db.users.filter(isStaff).map(x=>`<tr><td>${esc(x.nama)}</td><td>${esc(x.hp||'-')}</td><td>${roleChips(x)}</td><td style="white-space:nowrap">${canEditRoles(u,x)?`<button class="btn ghost sm" data-editr="${x.id}">Edit</button> `:''}${adm&&x.id!==u.id?`<button class="btn red sm" data-delu="${x.id}">Hapus</button>`:''}</td></tr>`))};
+/* ---------- Editor Struktur (modal) ---------- */
+function openRoleEditor(id){
+ const a=me(),t=db.users.find(x=>x.id===id);if(!canEditRoles(a,t))return;closeRoleEditor();
+ const m=document.createElement('div');m.className='modal-bg';m.id='roleModal';m.dataset.uid=id;
+ m.innerHTML=`<div class="modal" role="dialog" aria-modal="true" aria-label="Edit struktur"><h2>Edit Struktur</h2><p class="muted"><b>${esc(t.nama)}</b> — centang semua bidang yang dipegang.</p><div class="rolepick">${rolePick(userRoles(t),isAdmin(a),t.id===a.id)}</div><div class="err" id="rerr"></div><div class="row" style="margin-top:12px"><button type="button" class="btn ghost sm" data-rclose>Batal</button><button type="button" class="btn sm" data-rsave>Simpan</button></div></div>`;
+ document.body.appendChild(m);document.body.style.overflow='hidden';
+}
+function closeRoleEditor(){const m=$('#roleModal');if(m)m.remove();document.body.style.overflow=''}
+function saveRoleEditor(){
+ const m=$('#roleModal');if(!m)return;
+ const a=me(),t=db.users.find(x=>x.id===+m.dataset.uid);if(!canEditRoles(a,t))return closeRoleEditor();
+ let sel=$$('input[name=roles]:checked',m).map(i=>i.value);
+ if(!isAdmin(a))sel=sel.filter(r=>r!=='admin');
+ if(t.id===a.id&&isAdmin(a)&&!sel.includes('admin'))sel.push('admin');
+ sel=ROLE_KEYS.filter(r=>sel.includes(r));
+ if(!sel.length){$('#rerr').textContent='Pilih minimal satu bidang.';return}
+ t.roles=sel;t.role=sel[0];save();closeRoleEditor();render();toast('Struktur diperbarui');
+}
 
 /* ---------- Helper Tugas ---------- */
 function staffByRole(role){
-  return db.users.filter(u => u.role === role);
+  return db.users.filter(u => isStaff(u) && userRoles(u).includes(role));
 }
 
 function roleOptions(){
-  /* hanya divisi yang sudah punya anggota (admin ikut bila ada akunnya) */
-  const o=Object.keys(ROLES)
-    .filter(r => staffByRole(r).length)
+  return Object.keys(ROLES)
+    .filter(r => r !== 'admin')
     .map(r => `<option value="${r}">${RL[r]?.[0] || r}</option>`)
     .join('');
-  return o||'<option value="" disabled>Belum ada akun panitia. Buat dulu di Struktur & Role</option>';
 }
 
 function memberOptions(role){
@@ -885,7 +916,8 @@ document.addEventListener('submit',e=>{const f=e.target;e.preventDefault();const
   if(new Date(d.lahir)>new Date())return er.textContent='Tanggal lahir tidak valid.';
   const u=me();u.data={...d};if(u.status===STAT[0])u.status=STAT[1];save();toast('Data berhasil disimpan');location.hash='#/c/dashboard'}
  else if(f.dataset.add==='panitia'){if(!can('role'))return;const hp=normHp(d.hp);if(!okHp(hp))return toast('No. HP tidak valid',1);if(db.users.some(x=>x.hp===hp))return toast('No. HP sudah terdaftar',1);
-  db.users.push({id:nid(db.users),nama:d.nama.trim(),hp,pw:hash(d.pw),role:ROLES[d.role]?d.role:'humas'});save();render();toast('Panitia ditambahkan')}
+  const rs=ROLE_KEYS.filter(r=>new FormData(f).getAll('roles').includes(r));if(!rs.length)return toast('Pilih minimal satu bidang',1);
+  db.users.push({id:nid(db.users),nama:d.nama.trim(),hp,pw:hash(d.pw),role:rs[0],roles:rs});save();render();toast('Panitia ditambahkan')}
 else if(f.dataset.add){
   const m=f.dataset.add;
 
@@ -901,7 +933,7 @@ else if(f.dataset.add){
 
     d.pjId=pj.id;
     d.pj=pj.nama;
-    d.divisi=pj.role;
+    if(!userRoles(pj).includes(d.divisi))return toast('Penanggung jawab bukan anggota divisi ini',1);
   }
 
   // JADWAL
@@ -915,7 +947,7 @@ else if(f.dataset.add){
 
   d.picId=pj.id;
   d.pic=pj.nama;
-  d.picRole=RL[pj.role]?.[0]||pj.role;
+  d.picRole=roleLabel(pj);
   }
 
   // ADUAN
@@ -965,18 +997,21 @@ function setNav(open){
  if(b){b.setAttribute('aria-expanded',open);b.setAttribute('aria-label',open?'Tutup menu':'Buka menu')}
  document.body.classList.toggle('nav-open',open);
 }
-document.addEventListener('click',e=>{if(e.target.id==='scrim')setNav(false)});
-document.addEventListener('keydown',e=>{if(e.key==='Escape')setNav(false)});
+document.addEventListener('click',e=>{if(e.target.id==='scrim')setNav(false);if(e.target.id==='roleModal')closeRoleEditor()});
+document.addEventListener('mousedown',e=>{if(e.target.closest('[data-pw]'))e.preventDefault()});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-pw]');if(!b)return;const i=b.parentElement.querySelector('input');if(!i)return;const show=i.type==='password';i.type=show?'text':'password';b.classList.toggle('on',show);b.setAttribute('aria-pressed',show);b.setAttribute('aria-label',show?'Sembunyikan password':'Tampilkan password')});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){setNav(false);closeRoleEditor()}});
 window.addEventListener('resize',()=>{if(innerWidth>900)setNav(false)});
 document.addEventListener('click',e=>{const t=e.target.closest('button,a,i');if(!t)return;const u=me();
  if(t.dataset.pdreset!==undefined){PF.q=PF.sekolah=PF.status='';render()}
  if(t.id==='burger'||t.parentElement?.id==='burger')$('#navLinks').classList.toggle('open');
  if(t.id==='sb'||t.parentElement?.id==='sb')setNav(!$('#side')?.classList.contains('open'));
  if(t.closest('.side a'))setNav(false);
+ if(t.dataset.editr)openRoleEditor(+t.dataset.editr);
+ if(t.dataset.rclose!==undefined)closeRoleEditor();
+ if(t.dataset.rsave!==undefined)saveRoleEditor();
  if(t.id==='logout'){sessionStorage.removeItem('sid');localStorage.removeItem('sid');location.hash='#/'}
  if(t.dataset.del){const[m,id]=t.dataset.del.split(':');if(can(m)&&confirm('Hapus data ini?')){db[m]=db[m].filter(x=>x.id!==+id);save();render()}}
- if(t.dataset.delc&&canDelCalon()){const c=db.users.find(x=>x.id===+t.dataset.delc&&x.role==='calon');
-  if(c&&confirm('Hapus pendaftar "'+c.nama+'"? Akun dan datanya hilang permanen.')){db.users=db.users.filter(x=>x!==c);save();render();toast('Pendaftar dihapus')}}
  if(t.dataset.delu&&can('role')&&confirm('Hapus akun panitia ini?')){db.users=db.users.filter(x=>x.id!==+t.dataset.delu);save();render()}
  if(t.dataset.csv!==undefined&&isStaff(u)){const c=s=>'"'+(/^[=+\-@]/.test(s)?"'":'')+String(s??'').replace(/"/g,'""')+'"';
   const r=[['Nama','No. HP','Sekolah','Kelas','Status'],...pdFiltered().map(x=>[x.nama,x.hp,x.data?.sekolah,x.data?.kelas,x.status])].map(r=>r.map(c).join(',')).join('\n');
@@ -999,7 +1034,6 @@ if(t.id==='filterSekolah'||t.id==='filterStatus'){
   return;
 }
  if(t.dataset.st&&can('pendaftar')){db.users.find(x=>x.id===+t.dataset.st).status=t.value;save();toast('Status diperbarui');if($('#pdResults'))$('#pdResults').innerHTML=pdResults()}
- if(t.dataset.role&&can('role')&&ROLES[t.value]){db.users.find(x=>x.id===+t.dataset.role).role=t.value;save();toast('Role diperbarui')}
  if(t.dataset.set){const[m,id,k]=t.dataset.set.split(':');if(can(m)||(m==='aduan'&&can('aduan'))){db[m].find(x=>x.id===+id)[k]=t.value;save();toast('Diperbarui')}}});
 document.addEventListener('input',e=>{const t=e.target;
 if(t.id==='cari'){
